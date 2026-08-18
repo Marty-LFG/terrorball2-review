@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <title>TerrorBall 2</title>
+
+    <!-- viewport-fit=cover so the canvas reaches under notches; no user scaling, or a
+         double-tap on mobile zooms the page instead of tapping the ball. -->
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2b0f26">
+
+    <style>
+      :root {
+        --plum-deep: #2b0f26;
+        --plum-panel: #6e3d6e;
+        --green: #2be02b;
+        --lavender: #a08fb0;
+      }
+
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--plum-deep);
+        /* Stops mobile browsers hijacking drags as scroll/pull-to-refresh, which otherwise
+           swallows taps meant for the game. */
+        overscroll-behavior: none;
+        touch-action: none;
+        -webkit-tap-highlight-color: transparent;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+
+      /* Fills the window at any aspect. The game letterboxes itself: the camera frames the
+         level's own bounds, so extra space becomes border rather than cropped playfield. */
+      #unity-container {
+        position: fixed;
+        inset: 0;
+        display: block;
+      }
+
+      #unity-canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        background: var(--plum-deep);
+        outline: none;
+      }
+
+      #loading {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 28px;
+        background: var(--plum-deep);
+        font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        transition: opacity 0.4s ease;
+      }
+
+      #loading.done { opacity: 0; pointer-events: none; }
+
+      #loading h1 {
+        margin: 0;
+        font-size: clamp(22px, 6vw, 44px);
+        font-weight: 800;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--green);
+      }
+
+      #loading h1 span { color: #3fe0e6; }
+
+      /* Hard-edged bar, matching the game's flat geometry - no rounded corners anywhere. */
+      #bar {
+        width: min(60vw, 320px);
+        height: 10px;
+        background: rgba(160, 143, 176, 0.22);
+      }
+
+      #bar-fill {
+        width: 0%;
+        height: 100%;
+        background: var(--green);
+        transition: width 0.15s linear;
+      }
+
+      #pct {
+        margin: 0;
+        font-size: 13px;
+        letter-spacing: 0.22em;
+        color: var(--lavender);
+      }
+
+      #error {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        text-align: center;
+        color: var(--lavender);
+        font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 15px;
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="unity-container">
+      <canvas id="unity-canvas" tabindex="-1"></canvas>
+    </div>
+
+    <div id="loading">
+      <h1>Terror<span>ball</span> 2</h1>
+      <div id="bar"><div id="bar-fill"></div></div>
+      <p id="pct">LOADING 0%</p>
+    </div>
+
+    <div id="error"></div>
+
+    <script>
+      var buildUrl = "Build";
+      var config = {
+        dataUrl: buildUrl + "/WebMobileDev.data.unityweb",
+        frameworkUrl: buildUrl + "/WebMobileDev.framework.js.unityweb",
+        codeUrl: buildUrl + "/WebMobileDev.wasm.unityweb",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "Lightning Forge Games",
+        productName: "TerrorBall 2",
+        productVersion: "1.0",
+        // Let the canvas follow its CSS size instead of a fixed backing-store size, so
+        // rotating a phone or resizing a window reflows rather than stretching.
+        matchWebGLToCanvasSize: true
+      };
+
+      var canvas = document.querySelector("#unity-canvas");
+      var loading = document.querySelector("#loading");
+      var barFill = document.querySelector("#bar-fill");
+      var pct = document.querySelector("#pct");
+      var errorBox = document.querySelector("#error");
+
+      function showError(message) {
+        loading.style.display = "none";
+        errorBox.style.display = "flex";
+        errorBox.textContent = message;
+      }
+
+      // Cap the backing store on mobile. Some phones report a devicePixelRatio of 3-4, and a
+      // full-resolution WebGL surface at that size costs far more than it gains here - the art
+      // is flat colour with no fine detail.
+      var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        config.devicePixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      }
+
+      var script = document.createElement("script");
+      script.src = buildUrl + "/WebMobileDev.loader.js";
+      script.onerror = function () {
+        showError("Could not load the game files. If you are viewing this from a local file, it needs to be served over http.");
+      };
+      script.onload = function () {
+        createUnityInstance(canvas, config, function (progress) {
+          var percent = Math.round(progress * 100);
+          barFill.style.width = percent + "%";
+          pct.textContent = "LOADING " + percent + "%";
+        }).then(function () {
+          loading.classList.add("done");
+          setTimeout(function () { loading.style.display = "none"; }, 450);
+          canvas.focus();
+        }).catch(function (message) {
+          showError(message);
+        });
+      };
+      document.body.appendChild(script);
+    </script>
+  </body>
+</html>
