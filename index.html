@@ -113,6 +113,26 @@
         line-height: 1.6;
       }
     </style>
+    <style>
+      #tb2-bar {
+        position: fixed;
+        left: 0; right: 0; bottom: 0;
+        z-index: 10;
+        display: flex;
+        gap: 14px;
+        align-items: baseline;
+        padding: 6px 12px;
+        background: #200B1D;
+        color: #A08FB0;
+        font: 500 11px/1.4 system-ui, sans-serif;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      #tb2-feedback { color: #2BE02B; text-decoration: none; border-bottom: 1px solid #2BE02B; }
+      #tb2-id { color: #CC7F4C; font-variant-numeric: tabular-nums; }
+      #tb2-note { margin-left: auto; opacity: 0.55; text-transform: none; letter-spacing: 0.02em; }
+      @media (max-width: 520px) { #tb2-note { display: none; } }
+    </style>
   </head>
 
   <body>
@@ -128,7 +148,80 @@
 
     <div id="error"></div>
 
+    <!--
+      Deliberately real DOM outside the canvas rather than UI inside the game.
+      Application.OpenURL from a WebGL canvas is routinely popup-blocked, because the click does not
+      look like a user gesture on a link; an anchor in the page never is. It is also visible while
+      the game is still loading, which is when an impatient tester is most likely to want it.
+    -->
+    <div id="tb2-bar">
+      <a id="tb2-feedback" href="#" target="_blank" rel="noopener" hidden>Give feedback</a>
+      <span id="tb2-id" title="Quote this in the feedback form so your notes can be matched to your session."></span>
+      <span id="tb2-note">Anonymous play data (levels, deaths, timings) is recorded.</span>
+    </div>
+
     <script>
+      // ---- Telemetry delivery ---------------------------------------------------------------
+      // Unity queues batches through the TB2_* jslib bridge; this owns getting them out.
+      //
+      // sendBeacon is the only transport designed to survive page unload - fetch and XHR are both
+      // cancelled when the document goes away, which is precisely when the most valuable event of
+      // all (the tester giving up and closing the tab) is emitted.
+      //
+      // text/plain keeps the POST a CORS *simple request*: no preflight, so the receiving endpoint
+      // needs no CORS configuration. application/json would trigger an OPTIONS that a Google Apps
+      // Script web app does not answer.
+      (function () {
+        // ---------------------------------------------------------------------------------
+        // SET THESE TWO, then redeploy. Both are safe to leave empty:
+        //   ENDPOINT empty -> nothing is transmitted; the game still records locally and the
+        //                     end-of-run screen still shows a copyable session blob.
+        //   FEEDBACK empty -> the feedback link stays hidden rather than dangling.
+        //
+        // ENDPOINT wants a Google Apps Script web app deployed as "execute as me / anyone", whose
+        // doPost appends JSON.parse(e.postData.contents) to a sheet. About fifteen lines.
+        // ---------------------------------------------------------------------------------
+        var ENDPOINT = "";
+        var FEEDBACK = "";
+        window.TB2 = window.TB2 || {};
+        window.TB2.pending = window.TB2.pending || [];
+
+        window.TB2.flush = function () {
+          if (!ENDPOINT || !window.TB2.pending.length) return;
+          var payload = '{"batches":[' + window.TB2.pending.join(",") + ']}';
+          try {
+            if (navigator.sendBeacon &&
+                navigator.sendBeacon(ENDPOINT, new Blob([payload], { type: "text/plain" }))) {
+              window.TB2.pending = [];
+            }
+          } catch (e) {
+            // Keep the events queued and try again at the next boundary rather than losing them.
+            console.warn("telemetry flush failed", e);
+          }
+        };
+
+        window.TB2.showId = function (pid) {
+          var el = document.getElementById("tb2-id");
+          if (el) el.textContent = "ID " + pid;
+        };
+
+        // Only show the link if it goes somewhere. A dead "Give feedback" is worse than none.
+        var link = document.getElementById("tb2-feedback");
+        if (link && FEEDBACK) { link.href = FEEDBACK; link.hidden = false; }
+
+        // Nothing is transmitted when no endpoint is set, so do not claim otherwise.
+        var note = document.getElementById("tb2-note");
+        if (note && !ENDPOINT) note.textContent = "";
+
+        // pagehide, not unload: unload does not fire reliably on mobile Safari, which is a large
+        // slice of "played it on my phone". visibilitychange catches the tab being backgrounded,
+        // which on mobile is usually the last thing that happens before it is discarded.
+        window.addEventListener("pagehide", window.TB2.flush);
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "hidden") window.TB2.flush();
+        });
+      })();
+
       var buildUrl = "Build";
       var config = {
         dataUrl: buildUrl + "/WebPlaytest.data.unityweb",
@@ -137,7 +230,7 @@
         streamingAssetsUrl: "StreamingAssets",
         companyName: "Lightning Forge Games",
         productName: "TerrorBall 2",
-        productVersion: "fda3fdd",
+        productVersion: "6d7190e",
         // Let the canvas follow its CSS size instead of a fixed backing-store size, so
         // rotating a phone or resizing a window reflows rather than stretching.
         matchWebGLToCanvasSize: true
