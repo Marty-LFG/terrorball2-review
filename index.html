@@ -131,13 +131,13 @@
     <script>
       var buildUrl = "Build";
       var config = {
-        dataUrl: buildUrl + "/WebMobileDev.data.unityweb",
-        frameworkUrl: buildUrl + "/WebMobileDev.framework.js.unityweb",
-        codeUrl: buildUrl + "/WebMobileDev.wasm.unityweb",
+        dataUrl: buildUrl + "/WebPlaytest.data.unityweb",
+        frameworkUrl: buildUrl + "/WebPlaytest.framework.js.unityweb",
+        codeUrl: buildUrl + "/WebPlaytest.wasm.unityweb",
         streamingAssetsUrl: "StreamingAssets",
         companyName: "Lightning Forge Games",
         productName: "TerrorBall 2",
-        productVersion: "1.0",
+        productVersion: "fda3fdd",
         // Let the canvas follow its CSS size instead of a fixed backing-store size, so
         // rotating a phone or resizing a window reflows rather than stretching.
         matchWebGLToCanvasSize: true
@@ -164,7 +164,7 @@
       }
 
       var script = document.createElement("script");
-      script.src = buildUrl + "/WebMobileDev.loader.js";
+      script.src = buildUrl + "/WebPlaytest.loader.js";
       script.onerror = function () {
         showError("Could not load the game files. If you are viewing this from a local file, it needs to be served over http.");
       };
